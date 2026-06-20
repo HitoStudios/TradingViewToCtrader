@@ -155,7 +155,7 @@ export class CTraderClient {
         if (this.onExecutionEvent) this.onExecutionEvent(payload);
         {
           const p = payload as any;
-          if (p.position && p.position.positionId && this.pendingExecutionResolve) {
+          const pos = p.position;`n          if (pos && pos.positionId && pos.positionStatus === 1 && this.pendingExecutionResolve) {
             this.pendingExecutionResolve(Number(p.position.positionId));
             this.pendingExecutionResolve = null;
             this.pendingExecutionReject = null;
