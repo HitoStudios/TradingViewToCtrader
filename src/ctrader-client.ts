@@ -15,8 +15,11 @@ export interface SymbolInfo {
 }
 
 export class CTraderClient {
-  private ws: WebSocket |  private pendingSymbolResolve: (() => void) | null = null;
+  private ws: WebSocket |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private host: string;
   private clientId: string;
   private clientSecret: string;
@@ -24,23 +27,47 @@ export class CTraderClient {
   private refreshToken: string;
   private accountId: number;
   private authenticated = false;
-  private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingReject: ((reason: Error) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private pendingReject: ((reason: Error) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolResolve: (() => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;|  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private log: (msg: string) => void;
 
-  onExecutionEvent: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  onExecutionEvent: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  onError: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  onError: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
 
   constructor(config: {
     host: string;
@@ -297,8 +324,11 @@ export class CTraderClient {
   }
 
   private symbolCache: Record<string, SymbolInfo> = {};
-  private cachedSymbolsPromise: Promise<void> |  private pendingSymbolResolve: (() => void) | null = null;
+  private cachedSymbolsPromise: Promise<void> |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
   private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
 
   async getSymbolInfo(symbolName: string): Promise<SymbolInfo | null> {
     if (this.symbolCache[symbolName]) {
@@ -364,6 +394,7 @@ export class CTraderClient {
       }
 
       self.pendingSymbolDetailResolve = resolve;
+      self.pendingSymbolDetailReject = reject;
 
       self.send({
         clientMsgId: uid(),
@@ -378,6 +409,7 @@ export class CTraderClient {
       setTimeout(function () {
         if (self.pendingSymbolDetailResolve === resolve) {
           self.pendingSymbolDetailResolve = null;
+          self.pendingSymbolDetailReject = null;
           reject(new Error('Symbol detail load timeout'));
         }
       }, 15000);
