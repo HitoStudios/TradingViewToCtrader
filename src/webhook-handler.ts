@@ -33,6 +33,8 @@ function parseAction(action: string): { tradeSide: number; orderType: number } |
   return { tradeSide, orderType };
 }
 
+const MIN_VOLUME = 1000;
+
 export function createWebhookRouter(client: CTraderClient, secret: string): Router {
   const router = Router();
 
@@ -70,6 +72,13 @@ export function createWebhookRouter(client: CTraderClient, secret: string): Rout
       return;
     }
 
+    if (body.notional < MIN_VOLUME) {
+      res.status(400).json({
+        error: 'Volume too low: ' + body.notional + ' cents (min ' + MIN_VOLUME + ' cents = 0.1 lots). Increase notional.',
+      });
+      return;
+    }
+
     try {
       const symbolId = await client.getSymbolId(body.symbol);
       if (!symbolId) {
@@ -100,8 +109,8 @@ export function createWebhookRouter(client: CTraderClient, secret: string): Rout
         comment: 'TV bridge',
       });
 
-      console.log('Order placed successfully');
-      res.json({ success: true, message: 'Order placed' });
+      console.log('Order sent to cTrader');
+      res.json({ success: true, message: 'Order sent' });
     } catch (err) {
       console.error('Order placement failed:', err);
       res.status(500).json({ error: 'Order placement failed', details: String(err) });
