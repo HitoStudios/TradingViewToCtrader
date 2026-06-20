@@ -3,7 +3,7 @@ import { PayloadType, OrderType, TradeSide, OAMessage } from './types.js';
 
 let msgCounter = 1;
 function uid(): string {
-  return 'cm_id_' + (msgCounter++);
+  return 'cm_id_' + String(msgCounter++);
 }
 
 export class CTraderClient {
@@ -43,32 +43,33 @@ export class CTraderClient {
   }
 
   async connect(): Promise<boolean> {
-    return new Promise<boolean>((resolve, reject) => {
-      this.log(Connecting to wss://\:5036...);
-      this.ws = new WebSocket(wss://\:5036);
+    const self = this;
+    return new Promise<boolean>(function (resolve, reject) {
+      self.log('Connecting to wss://' + self.host + ':5036...');
+      self.ws = new WebSocket('wss://' + self.host + ':5036');
 
-      this.ws.onopen = () => {
-        this.log('WebSocket connected');
-        this.pendingResolve = resolve;
-        this.pendingReject = reject;
-        this.sendAppAuth();
-        this.startHeartbeat();
+      self.ws.onopen = function () {
+        self.log('WebSocket connected');
+        self.pendingResolve = resolve;
+        self.pendingReject = reject;
+        self.sendAppAuth();
+        self.startHeartbeat();
       };
 
-      this.ws.onmessage = (event) => {
-        this.handleMessage(event.data.toString());
+      self.ws.onmessage = function (event) {
+        self.handleMessage(event.data.toString());
       };
 
-      this.ws.onerror = (err) => {
-        this.log(WebSocket error: \);
+      self.ws.onerror = function (err) {
+        self.log('WebSocket error: ' + err.message);
         reject(err);
       };
 
-      this.ws.onclose = (event) => {
-        this.log(WebSocket closed: code=\ reason=\);
-        this.authenticated = false;
-        this.stopHeartbeat();
-        this.scheduleReconnect();
+      self.ws.onclose = function (event) {
+        self.log('WebSocket closed: code=' + event.code + ' reason=' + event.reason);
+        self.authenticated = false;
+        self.stopHeartbeat();
+        self.scheduleReconnect();
       };
     });
   }
@@ -107,7 +108,7 @@ export class CTraderClient {
     try {
       msg = JSON.parse(data);
     } catch {
-      this.log(Failed to parse message: \);
+      this.log('Failed to parse message: ' + data);
       return;
     }
 
@@ -130,17 +131,17 @@ export class CTraderClient {
         break;
 
       case PayloadType.PROTO_OA_EXECUTION_EVENT:
-        this.log(Execution event: \);
+        this.log('Execution event: ' + JSON.stringify(payload));
         if (this.onExecutionEvent) this.onExecutionEvent(payload);
         break;
 
       case PayloadType.PROTO_OA_ORDER_ERROR_EVENT:
-        this.log(Order error: \);
+        this.log('Order error: ' + JSON.stringify(payload));
         if (this.onError) this.onError(payload);
         break;
 
       case PayloadType.PROTO_OA_ERROR_RES:
-        this.log(Server error: \);
+        this.log('Server error: ' + JSON.stringify(payload));
         {
           const p = payload as Record<string, string>;
           if (p.errorCode === 'OA_AUTH_TOKEN_EXPIRED' || p.errorCode === '1') {
@@ -148,9 +149,8 @@ export class CTraderClient {
             this.refreshAccessToken();
             break;
           }
-          // Auth failure during connect - reject the promise
           if (this.pendingReject) {
-            const err = new Error(Auth failed: \ - \);
+            const err = new Error('Auth failed: ' + p.errorCode + ' - ' + p.description);
             this.pendingReject(err);
             this.pendingReject = null;
             this.pendingResolve = null;
@@ -168,7 +168,7 @@ export class CTraderClient {
             if (p.refreshToken) {
               this.refreshToken = p.refreshToken;
             }
-            this.log(New access token: \...);
+            this.log('New access token: ' + this.accessToken.substring(0, 20) + '...');
             this.sendAccountAuth(this.accessToken);
           }
         }
@@ -178,7 +178,7 @@ export class CTraderClient {
         break;
 
       default:
-        this.log(Unhandled message type \: \);
+        this.log('Unhandled message type ' + payloadType + ': ' + JSON.stringify(payload).substring(0, 200));
     }
   }
 
@@ -196,9 +196,10 @@ export class CTraderClient {
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
-    this.heartbeatTimer = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.send({
+    const self = this;
+    this.heartbeatTimer = setInterval(function () {
+      if (self.ws && self.ws.readyState === WebSocket.OPEN) {
+        self.send({
           payloadType: PayloadType.HEARTBEAT_EVENT,
           payload: {},
         });
@@ -216,13 +217,14 @@ export class CTraderClient {
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
     this.log('Scheduling reconnect in 5s...');
-    this.reconnectTimer = setTimeout(async () => {
-      this.reconnectTimer = null;
+    const self = this;
+    this.reconnectTimer = setTimeout(async function () {
+      self.reconnectTimer = null;
       try {
-        await this.connect();
+        await self.connect();
       } catch (err) {
-        this.log(Reconnect failed: \);
-        this.scheduleReconnect();
+        self.log('Reconnect failed: ' + err);
+        self.scheduleReconnect();
       }
     }, 5000);
   }
@@ -245,43 +247,46 @@ export class CTraderClient {
   private async ensureSymbolsLoaded(): Promise<void> {
     if (this.cachedSymbolsPromise) return this.cachedSymbolsPromise;
 
-    this.cachedSymbolsPromise = new Promise<void>((resolve, reject) => {
-      if (!this.ws || !this.authenticated) {
+    const self = this;
+    this.cachedSymbolsPromise = new Promise<void>(function (resolve, reject) {
+      if (!self.ws || !self.authenticated) {
         reject(new Error('Not connected'));
         return;
       }
 
-      const listener = (data: string) => {
+      const listener = function (data: string) {
         try {
           const msg = JSON.parse(data.toString());
           if (msg.payloadType === PayloadType.PROTO_OA_SYMBOLS_LIST_RES) {
-            this.ws?.removeListener('message', listener);
+            if (self.ws) self.ws.removeListener('message', listener);
             const symbols = msg.payload.symbol ?? [];
             for (const sym of symbols) {
               if (sym.symbolName) {
-                this.symbolCache[sym.symbolName] = Number(sym.symbolId);
+                self.symbolCache[sym.symbolName] = Number(sym.symbolId);
               }
             }
-            this.log(Cached \ symbols);
+            self.log('Cached ' + Object.keys(self.symbolCache).length + ' symbols');
             resolve();
           }
-        } catch { }
+        } catch {
+          // ignore parse errors on other messages
+        }
       };
 
-      this.ws!.on('message', listener);
+      if (self.ws) self.ws.on('message', listener);
 
-      this.send({
+      self.send({
         clientMsgId: uid(),
         payloadType: PayloadType.PROTO_OA_SYMBOLS_LIST_REQ,
         payload: {
-          ctidTraderAccountId: this.accountId,
-          accessToken: this.accessToken,
+          ctidTraderAccountId: self.accountId,
+          accessToken: self.accessToken,
           includeArchivedSymbols: false,
         },
       });
 
-      setTimeout(() => {
-        this.ws?.removeListener('message', listener);
+      setTimeout(function () {
+        if (self.ws) self.ws.removeListener('message', listener);
         reject(new Error('Symbol load timeout'));
       }, 15000);
     });
