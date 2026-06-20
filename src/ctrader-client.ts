@@ -6,6 +6,14 @@ function uid(): string {
   return 'cm_id_' + String(msgCounter++);
 }
 
+export interface SymbolInfo {
+  symbolId: number;
+  symbolName: string;
+  minVolume?: number;
+  maxVolume?: number;
+  volumeStep?: number;
+}
+
 export class CTraderClient {
   private ws: WebSocket | null = null;
   private host: string;
@@ -180,7 +188,13 @@ export class CTraderClient {
           const symbols = (payload.symbol ?? []) as any[];
           for (const sym of symbols) {
             if (sym.symbolName) {
-              this.symbolCache[sym.symbolName] = Number(sym.symbolId);
+              this.symbolCache[sym.symbolName] = {
+                symbolId: Number(sym.symbolId),
+                symbolName: sym.symbolName,
+                minVolume: sym.minVolume != null ? Number(sym.minVolume) : undefined,
+                maxVolume: sym.maxVolume != null ? Number(sym.maxVolume) : undefined,
+                volumeStep: sym.volumeStep != null ? Number(sym.volumeStep) : undefined,
+              };
             }
           }
           this.log('Cached ' + Object.keys(this.symbolCache).length + ' symbols');
@@ -250,10 +264,10 @@ export class CTraderClient {
     return this.authenticated;
   }
 
-  private symbolCache: Record<string, number> = {};
+  private symbolCache: Record<string, SymbolInfo> = {};
   private cachedSymbolsPromise: Promise<void> | null = null;
 
-  async getSymbolId(symbolName: string): Promise<number | null> {
+  async getSymbolInfo(symbolName: string): Promise<SymbolInfo | null> {
     if (this.symbolCache[symbolName]) {
       return this.symbolCache[symbolName];
     }
