@@ -36,13 +36,13 @@ This opens a browser; authorize your app. Copy the returned `accessToken` and `r
 Alternatively, manually build the OAuth URL:
 
 ```
-https://connect.spotware.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:8080&response_type=code&scope=trading
+https://openapi.ctrader.com/apps/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:8080&response_type=code&scope=trading
 ```
 
 Then exchange the code for tokens via:
 
 ```
-curl -X POST https://connect.spotware.com/oauth/token \
+curl -X POST https://openapi.ctrader.com/apps/token \
   -H 'Content-Type: application/json' \
   -d '{"grant_type":"authorization_code","code":"CODE","redirect_uri":"http://localhost:8080","client_id":"YOUR_CLIENT_ID","client_secret":"YOUR_CLIENT_SECRET"}'
 ```
