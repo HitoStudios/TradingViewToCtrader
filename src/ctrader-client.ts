@@ -177,7 +177,7 @@ export class CTraderClient {
 
       case PayloadType.PROTO_OA_SYMBOLS_LIST_RES:
         {
-          const symbols = (payload.symbol ?? []) as Array<Record<string, unknown>>;
+          const symbols = (payload.symbol ?? []) as any[];
           for (const sym of symbols) {
             if (sym.symbolName) {
               this.symbolCache[sym.symbolName] = Number(sym.symbolId);
