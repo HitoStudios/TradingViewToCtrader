@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import { CTraderClient } from './ctrader-client.js';
 import { createWebhookRouter } from './webhook-handler.js';
@@ -14,7 +13,7 @@ function loadConfig() {
 
   for (const key of required) {
     if (!process.env[key]) {
-      console.error(`Missing required env var: ${key}`);
+      console.error('Missing required env var: ' + key);
       process.exit(1);
     }
   }
@@ -43,7 +42,6 @@ async function main() {
     accountId: config.ctidTraderAccountId,
   });
 
-  // Connect to cTrader Open API
   console.log('Connecting to cTrader Open API...');
   try {
     await client.connect();
@@ -53,19 +51,17 @@ async function main() {
     process.exit(1);
   }
 
-  // Start HTTP server
   const app = express();
   app.use(express.json());
 
   app.use(createWebhookRouter(client, config.webhookSecret));
 
   app.listen(config.port, () => {
-    console.log(`TradingView â†’ cTrader bridge listening on port ${config.port}`);
-    console.log(`Webhook endpoint: POST http://localhost:${config.port}/webhook`);
-    console.log(`Health check:    GET  http://localhost:${config.port}/health`);
+    console.log('TradingView cTrader bridge listening on port ' + config.port);
+    console.log('Webhook endpoint: POST http://localhost:' + config.port + '/webhook');
+    console.log('Health check:    GET  http://localhost:' + config.port + '/health');
   });
 
-  // Graceful shutdown
   process.on('SIGINT', () => {
     console.log('\nShutting down...');
     client.disconnect();
