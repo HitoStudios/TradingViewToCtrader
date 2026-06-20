@@ -19,7 +19,7 @@ export function createWebhookRouter(client: CTraderClient, webhookSecret: string
     }
 
     const alert = req.body;
-    this.log(Received alert: );
+    console.log(Received alert: );
     
     if (!alert || !alert.Action) {
       res.status(400).json({ error: 'Missing Action in alert payload' });
@@ -82,7 +82,7 @@ export function createWebhookRouter(client: CTraderClient, webhookSecret: string
 
       res.json(response);
     } catch (err) {
-      this.log(Order error: );
+      console.log(Order error: );
       res.status(500).json({ error: String(err) });
     }
   });
