@@ -17,6 +17,7 @@ export class CTraderClient {
   private authenticated = false;
   private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) | null = null;
   private pendingReject: ((reason: Error) => void) | null = null;
+  private pendingSymbolResolve: (() => void) | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private log: (msg: string) => void;
@@ -174,6 +175,22 @@ export class CTraderClient {
         }
         break;
 
+      case PayloadType.PROTO_OA_SYMBOLS_LIST_RES:
+        {
+          const symbols = payload.symbol ?? [];
+          for (const sym of symbols) {
+            if (sym.symbolName) {
+              this.symbolCache[sym.symbolName] = Number(sym.symbolId);
+            }
+          }
+          this.log('Cached ' + Object.keys(this.symbolCache).length + ' symbols');
+          if (this.pendingSymbolResolve) {
+            this.pendingSymbolResolve();
+            this.pendingSymbolResolve = null;
+          }
+        }
+        break;
+
       case PayloadType.HEARTBEAT_EVENT:
         break;
 
@@ -254,26 +271,7 @@ export class CTraderClient {
         return;
       }
 
-      const listener = function (data: string) {
-        try {
-          const msg = JSON.parse(data.toString());
-          if (msg.payloadType === PayloadType.PROTO_OA_SYMBOLS_LIST_RES) {
-            if (self.ws) self.ws.removeListener('message', listener);
-            const symbols = msg.payload.symbol ?? [];
-            for (const sym of symbols) {
-              if (sym.symbolName) {
-                self.symbolCache[sym.symbolName] = Number(sym.symbolId);
-              }
-            }
-            self.log('Cached ' + Object.keys(self.symbolCache).length + ' symbols');
-            resolve();
-          }
-        } catch {
-          // ignore parse errors on other messages
-        }
-      };
-
-      if (self.ws) self.ws.on('message', listener);
+      self.pendingSymbolResolve = resolve;
 
       self.send({
         clientMsgId: uid(),
@@ -286,8 +284,10 @@ export class CTraderClient {
       });
 
       setTimeout(function () {
-        if (self.ws) self.ws.removeListener('message', listener);
-        reject(new Error('Symbol load timeout'));
+        if (self.pendingSymbolResolve === resolve) {
+          self.pendingSymbolResolve = null;
+          reject(new Error('Symbol load timeout'));
+        }
       }, 15000);
     });
 
