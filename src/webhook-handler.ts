@@ -37,9 +37,7 @@ function clampVolume(volume: number, info: SymbolInfo): number {
   let v = volume;
   if (info.minVolume != null && v < info.minVolume) v = info.minVolume;
   if (info.maxVolume != null && v > info.maxVolume) v = info.maxVolume;
-  if (info.volumeStep != null && info.volumeStep > 0) {
-    v = Math.round(v / info.volumeStep) * info.volumeStep;
-  }
+  // volumeStep rounded removed (not available from API)
   return v;
 }
 
