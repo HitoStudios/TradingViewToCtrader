@@ -153,6 +153,18 @@ export class CTraderClient {
       case PayloadType.PROTO_OA_EXECUTION_EVENT:
         this.log('Execution event: ' + JSON.stringify(payload));
         if (this.onExecutionEvent) this.onExecutionEvent(payload);
+        {
+          const p = payload as any;
+          if (p.position && p.position.positionId && this.pendingExecutionResolve) {
+            this.pendingExecutionResolve(Number(p.position.positionId));
+            this.pendingExecutionResolve = null;
+            this.pendingExecutionReject = null;
+            if (this.pendingExecutionTimer) {
+              clearTimeout(this.pendingExecutionTimer);
+              this.pendingExecutionTimer = null;
+            }
+          }
+        }
         break;
 
       case PayloadType.PROTO_OA_ORDER_ERROR_EVENT:
@@ -395,6 +407,78 @@ export class CTraderClient {
       clientMsgId: uid(),
       payloadType: PayloadType.PROTO_OA_CLOSE_POSITION_REQ,
       payload,
+    });
+  }
+
+  async amendPositionSLTP(params: {
+    positionId: number;
+    stopLoss?: number;
+    takeProfit?: number;
+  }): Promise<void> {
+    const payload: Record<string, unknown> = {
+      ctidTraderAccountId: this.accountId,
+      accessToken: this.accessToken,
+      positionId: params.positionId,
+    };
+    if (params.stopLoss != null) payload.stopLoss = params.stopLoss;
+    if (params.takeProfit != null) payload.takeProfit = params.takeProfit;
+
+    this.send({
+      clientMsgId: uid(),
+      payloadType: PayloadType.PROTO_OA_AMEND_POSITION_SLTP_REQ,
+      payload,
+    });
+  }
+
+  private pendingExecutionResolve: ((posId: number) => void) | null = null;
+  private pendingExecutionReject: ((err: Error) => void) | null = null;
+  private pendingExecutionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async placeMarketOrderWithSLTP(params: {
+    symbolId: number;
+    tradeSide: number;
+    volume: number;
+    stopLoss?: number;
+    takeProfit?: number;
+    comment?: string;
+  }): Promise<void> {
+    const self = this;
+
+    // Place the order without SL/TP
+    this.placeOrder({
+      symbolId: params.symbolId,
+      tradeSide: params.tradeSide,
+      volume: params.volume,
+      orderType: OrderType.MARKET,
+      comment: params.comment,
+    });
+
+    // If no SL/TP, we're done
+    if (params.stopLoss == null && params.takeProfit == null) return;
+
+    // Wait for execution event to get positionId
+    const positionId = await new Promise<number>(function (resolve, reject) {
+      self.pendingExecutionResolve = resolve;
+      self.pendingExecutionReject = reject;
+
+      self.pendingExecutionTimer = setTimeout(function () {
+        self.pendingExecutionResolve = null;
+        self.pendingExecutionReject = null;
+        reject(new Error('Timeout waiting for position execution'));
+      }, 10000);
+    });
+
+    // Cancel timeout
+    if (self.pendingExecutionTimer) {
+      clearTimeout(self.pendingExecutionTimer);
+      self.pendingExecutionTimer = null;
+    }
+
+    // Amend position with SL/TP
+    await this.amendPositionSLTP({
+      positionId,
+      stopLoss: params.stopLoss,
+      takeProfit: params.takeProfit,
     });
   }
 
