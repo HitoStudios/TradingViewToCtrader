@@ -197,6 +197,7 @@ export class CTraderClient {
               };
             }
           }
+          if (symbols.length > 0) { this.log('Sample symbol keys: ' + Object.keys(symbols[0]).join(', ')); }
           this.log('Cached ' + Object.keys(this.symbolCache).length + ' symbols');
           if (this.pendingSymbolResolve) {
             this.pendingSymbolResolve();
