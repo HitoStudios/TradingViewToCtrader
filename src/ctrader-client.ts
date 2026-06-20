@@ -138,6 +138,21 @@ export class CTraderClient {
 
       case PayloadType.PROTO_OA_ERROR_RES:
         this.log(`Server error: ${JSON.stringify(payload)}`);
+        if (payload?.errorCode === 'OA_AUTH_TOKEN_EXPIRED' || payload?.errorCode === 1) {
+          this.log('Access token expired, attempting refresh...');
+          this.refreshAccessToken();
+          break;
+        }
+        // If auth failed, reject the connect promise
+        if (this.pendingResolve) {
+          const err = new Error(`Auth failed: ${(payload as Record<string, string>).errorCode} - ${(payload as Record<string, string>).description}`);
+          this.pendingReject = err;
+          this.pendingReject = null;
+          this.pendingResolve = null;
+        }
+        if (this.onError) this.onError(payload);
+        break;
+        this.log(`Server error: ${JSON.stringify(payload)}`);
         // If token expired, try refresh
         if (payload?.errorCode === 'OA_AUTH_TOKEN_EXPIRED' || payload?.errorCode === 1) {
           this.log('Access token expired, attempting refresh...');
