@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { CTraderClient } from './ctrader-client.js';
-import { TradingViewAlert, OrderType, TradeSide } from './types.js';
+import { OrderType, TradeSide } from './types.js';
 
 export function createWebhookRouter(client: CTraderClient, webhookSecret: string): Router {
   const router = Router();
 
   router.post('/webhook', async (req: Request, res: Response) => {
-    // Auth check
     const authHeader = req.headers['authorization'];
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (token !== webhookSecret) {
@@ -19,80 +18,75 @@ export function createWebhookRouter(client: CTraderClient, webhookSecret: string
       return;
     }
 
-    const alert = req.body as TradingViewAlert;
-    if (!alert || !alert.action) {
-      res.status(400).json({ error: 'Missing action in alert payload' });
+    const alert = req.body;
+    this.log(Received alert: );
+    
+    if (!alert || !alert.Action) {
+      res.status(400).json({ error: 'Missing Action in alert payload' });
       return;
     }
 
     try {
-      switch (alert.action.toUpperCase()) {
-        case 'BUY':
-        case 'SELL': {
-          const tradeSide = alert.action.toUpperCase() === 'BUY' ? TradeSide.BUY : TradeSide.SELL;
+      const action = alert.Action as string;
+      const isLong = action.toLowerCase().includes('long');
+      const isShort = action.toLowerCase().includes('short');
 
-          // Resolve symbol name to symbolId
-          let symbolId = alert.symbolId;
-          if (!symbolId && alert.symbol) {
-            const resolved = await client.getSymbolId(alert.symbol);
-            if (!resolved) {
-              res.status(400).json({ error: `Unknown symbol: ${alert.symbol}` });
-              return;
-            }
-            symbolId = resolved;
-          }
-          if (!symbolId) {
-            res.status(400).json({ error: 'Missing symbolId or symbol' });
-            return;
-          }
-
-          const orderTypeMap: Record<string, number> = {
-            MARKET: OrderType.MARKET,
-            LIMIT: OrderType.LIMIT,
-            STOP: OrderType.STOP,
-          };
-
-          const orderType = alert.orderType
-            ? (orderTypeMap[alert.orderType.toUpperCase()] ?? OrderType.MARKET)
-            : OrderType.MARKET;
-
-          await client.placeOrder({
-            symbolId,
-            tradeSide,
-            volume: alert.volume ?? 100, // default 0.01 lot (100 cents)
-            orderType,
-            price: alert.price,
-            stopPrice: alert.price,
-            stopLoss: alert.stopLoss,
-            takeProfit: alert.takeProfit,
-            comment: alert.comment,
-          });
-
-          res.json({ status: 'order_submitted', action: alert.action, symbolId });
-          break;
-        }
-
-        case 'CLOSE': {
-          // Close requests need a positionId - for simplicity, require it in the payload
-          if (!alert.symbolId) {
-            res.status(400).json({ error: 'CLOSE requires symbolId' });
-            return;
-          }
-          await client.closePosition(alert.symbolId);
-          res.json({ status: 'close_submitted' });
-          break;
-        }
-
-        default:
-          res.status(400).json({ error: `Unknown action: ${alert.action}` });
+      if (!isLong && !isShort) {
+        res.status(400).json({ error: Cannot parse direction from Action:  });
+        return;
       }
+
+      const tradeSide = isLong ? TradeSide.BUY : TradeSide.SELL;
+      const symbol = alert.symbol as string | undefined;
+      const entryPrice = alert.entry as number | undefined;
+      const sl = alert.sl as number | undefined;
+      const tp1 = alert.tp1 as number | undefined;
+      const notional = alert.notional as number | undefined;
+
+      if (!symbol) {
+        res.status(400).json({ error: 'Missing symbol' });
+        return;
+      }
+
+      const symbolId = await client.getSymbolId(symbol);
+      if (!symbolId) {
+        res.status(400).json({ error: Unknown symbol:  });
+        return;
+      }
+
+      // notional is in cents - use directly as volume (100 = 0.01 lot)
+      const volume = notional ?? 100;
+
+      await client.placeOrder({
+        symbolId,
+        tradeSide,
+        volume,
+        orderType: OrderType.MARKET,
+        stopLoss: sl,
+        takeProfit: tp1,
+        comment: action,
+      });
+
+      const response: Record<string, unknown> = {
+        status: 'order_submitted',
+        action,
+        symbol,
+        volume,
+        sl,
+        tp1,
+      };
+
+      if (alert.tp2 || alert.tp3) {
+        response.note = Additional TP levels not set: tp2=, tp3=. Only tp1 was applied.;
+      }
+
+      res.json(response);
     } catch (err) {
-      console.error('Order error:', err);
+      this.log(Order error: );
       res.status(500).json({ error: String(err) });
     }
   });
 
-  // Health check
   router.get('/health', (_req: Request, res: Response) => {
     res.json({
       status: client.isAuthenticated() ? 'connected' : 'disconnected',
