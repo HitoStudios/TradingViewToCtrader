@@ -6,20 +6,27 @@ function uid(): string {
   return 'cm_id_' + String(msgCounter++);
 }
 
+const HARDCODED_VOLUME_LIMITS: Record<string, { minVolume?: number; maxVolume?: number }> = {
+  EURUSD: { minVolume: 1000 },
+  GBPUSD: { minVolume: 1000 },
+  USDJPY: { minVolume: 1000 },
+  USDCHF: { minVolume: 1000 },
+  AUDUSD: { minVolume: 1000 },
+  USDCAD: { minVolume: 1000 },
+  NZDUSD: { minVolume: 1000 },
+  BTCUSD: { maxVolume: 5 },
+  ETHUSD: { maxVolume: 5 },
+};
+
 export interface SymbolInfo {
   symbolId: number;
   symbolName: string;
   minVolume?: number;
   maxVolume?: number;
-  volumeStep?: number;
 }
 
 export class CTraderClient {
-  private ws: WebSocket |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private ws: WebSocket | null = null;
   private host: string;
   private clientId: string;
   private clientSecret: string;
@@ -27,47 +34,15 @@ export class CTraderClient {
   private refreshToken: string;
   private accountId: number;
   private authenticated = false;
-  private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingReject: ((reason: Error) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) | null = null;
+  private pendingReject: ((reason: Error) => void) | null = null;
+  private pendingSymbolResolve: (() => void) | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private log: (msg: string) => void;
 
-  onExecutionEvent: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  onError: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  onExecutionEvent: ((payload: any) => void) | null = null;
+  onError: ((payload: any) => void) | null = null;
 
   constructor(config: {
     host: string;
@@ -182,6 +157,7 @@ export class CTraderClient {
 
       case PayloadType.PROTO_OA_ORDER_ERROR_EVENT:
         this.log('Order error: ' + JSON.stringify(payload));
+        this.learnVolumeFromError(payload);
         if (this.onError) this.onError(payload);
         break;
 
@@ -227,9 +203,8 @@ export class CTraderClient {
               this.symbolCache[sym.symbolName] = {
                 symbolId: Number(sym.symbolId),
                 symbolName: sym.symbolName,
-                minVolume: sym.minVolume != null ? Number(sym.minVolume) : undefined,
-                maxVolume: sym.maxVolume != null ? Number(sym.maxVolume) : undefined,
-                volumeStep: sym.volumeStep != null ? Number(sym.volumeStep) : undefined,
+                minVolume: HARDCODED_VOLUME_LIMITS[sym.symbolName]?.minVolume,
+                maxVolume: HARDCODED_VOLUME_LIMITS[sym.symbolName]?.maxVolume,
               };
             }
           }
@@ -241,34 +216,38 @@ export class CTraderClient {
         }
         break;
 
-      case PayloadType.PROTO_OA_SYMBOL_BY_ID_RES:
-        {
-          const p = payload as any;
-          const sym = p.symbol || p;
-          if (sym.symbolId) {
-            const info: SymbolInfo = {
-              symbolId: Number(sym.symbolId),
-              symbolName: sym.symbolName || '',
-              minVolume: sym.minVolume != null ? Number(sym.minVolume) : undefined,
-              maxVolume: sym.maxVolume != null ? Number(sym.maxVolume) : undefined,
-              volumeStep: sym.volumeStep != null ? Number(sym.volumeStep) : undefined,
-            };
-            if (info.symbolName) {
-              this.symbolCache[info.symbolName] = info;
-            }
-            if (this.pendingSymbolDetailResolve) {
-              this.pendingSymbolDetailResolve(info);
-              this.pendingSymbolDetailResolve = null;
-            }
-          }
-        }
-        break;
-
       case PayloadType.HEARTBEAT_EVENT:
         break;
 
       default:
         this.log('Unhandled message type ' + payloadType + ': ' + JSON.stringify(payload).substring(0, 200));
+    }
+  }
+
+  private learnVolumeFromError(payload: any): void {
+    const desc: string = payload.description || '';
+    const match = desc.match(/order volume = ([\d.]+) is (smaller|bigger) than (minimum|maximum) allowed volume = ([\d.]+)/i);
+    if (!match) return;
+
+    const reported = parseFloat(match[1]);
+    const limit = parseFloat(match[4]);
+    const isMin = match[3].toLowerCase() === 'minimum';
+
+    // Find which symbol from symbolKey or check via error context
+    const symbolId: number | undefined = payload.symbolId || payload.ctidTraderAccountId;
+
+    // We don't have symbol name in the error, so search symbol cache by symbolId
+    for (const [name, info] of Object.entries(this.symbolCache)) {
+      if (info.symbolId === (payload as any).symbolId) {
+        if (isMin) {
+          info.minVolume = limit;
+          this.log('Learned min volume for ' + name + ': ' + limit);
+        } else {
+          info.maxVolume = limit;
+          this.log('Learned max volume for ' + name + ': ' + limit);
+        }
+        break;
+      }
     }
   }
 
@@ -324,32 +303,14 @@ export class CTraderClient {
   }
 
   private symbolCache: Record<string, SymbolInfo> = {};
-  private cachedSymbolsPromise: Promise<void> |  private pendingSymbolResolve: (() => void) |  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
-  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;|  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
-  private pendingSymbolDetailReject: ((err: Error) => void) | null = null;
+  private cachedSymbolsPromise: Promise<void> | null = null;
 
   async getSymbolInfo(symbolName: string): Promise<SymbolInfo | null> {
     if (this.symbolCache[symbolName]) {
-      const cached = this.symbolCache[symbolName];
-      if (cached.minVolume != null) return cached;
-      try {
-        const detail = await this.fetchSymbolDetails(cached.symbolId);
-        return detail;
-      } catch {
-        return cached;
-      }
+      return this.symbolCache[symbolName];
     }
     await this.ensureSymbolsLoaded();
-    const found = this.symbolCache[symbolName];
-    if (!found) return null;
-    try {
-      const detail = await this.fetchSymbolDetails(found.symbolId);
-      return detail;
-    } catch {
-      return found;
-    }
+    return this.symbolCache[symbolName] ?? null;
   }
 
   private async ensureSymbolsLoaded(): Promise<void> {
@@ -383,37 +344,6 @@ export class CTraderClient {
     });
 
     return this.cachedSymbolsPromise;
-  }
-
-  async fetchSymbolDetails(symbolId: number): Promise<SymbolInfo> {
-    const self = this;
-    return new Promise<SymbolInfo>(function (resolve, reject) {
-      if (!self.ws || !self.authenticated) {
-        reject(new Error('Not connected'));
-        return;
-      }
-
-      self.pendingSymbolDetailResolve = resolve;
-      self.pendingSymbolDetailReject = reject;
-
-      self.send({
-        clientMsgId: uid(),
-        payloadType: PayloadType.PROTO_OA_SYMBOL_BY_ID_REQ,
-        payload: {
-          ctidTraderAccountId: self.accountId,
-          accessToken: self.accessToken,
-          symbolId,
-        },
-      });
-
-      setTimeout(function () {
-        if (self.pendingSymbolDetailResolve === resolve) {
-          self.pendingSymbolDetailResolve = null;
-          self.pendingSymbolDetailReject = null;
-          reject(new Error('Symbol detail load timeout'));
-        }
-      }, 15000);
-    });
   }
 
   async placeOrder(params: {
