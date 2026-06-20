@@ -123,5 +123,13 @@ export function createWebhookRouter(client: CTraderClient, secret: string): Rout
     }
   });
 
+  router.get('/symbol/:name', async function (req: Request, res: Response) {
+    try {
+      const info = await client.getSymbolInfo(req.params.name.toUpperCase());
+      if (!info) { res.status(404).json({ error: 'Unknown symbol: ' + req.params.name }); return; }
+      res.json(info);
+    } catch (err) { res.status(500).json({ error: String(err) }); }
+  });
+
   return router;
 }
