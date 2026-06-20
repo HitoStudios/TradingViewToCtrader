@@ -102,16 +102,27 @@ export function createWebhookRouter(client: CTraderClient, secret: string): Rout
         console.log('Note: tp2=' + body.tp2 + ' tp3=' + body.tp3 + ' not applied (cTrader supports only one TP)');
       }
 
-      await client.placeOrder({
-        symbolId: info.symbolId,
-        tradeSide,
-        volume,
-        orderType,
-        price,
-        stopLoss,
-        takeProfit,
-        comment: 'TV bridge',
-      });
+      if (orderType === OrderType.MARKET) {
+        await client.placeMarketOrderWithSLTP({
+          symbolId: info.symbolId,
+          tradeSide,
+          volume,
+          stopLoss,
+          takeProfit,
+          comment: 'TV bridge',
+        });
+      } else {
+        await client.placeOrder({
+          symbolId: info.symbolId,
+          tradeSide,
+          volume,
+          orderType,
+          price,
+          stopLoss,
+          takeProfit,
+          comment: 'TV bridge',
+        });
+      }
 
       console.log('Order sent to cTrader: vol=' + volume + ' side=' + tradeSide);
       res.json({ success: true, message: 'Order sent', volume, range: { min: info.minVolume, max: info.maxVolume } });
