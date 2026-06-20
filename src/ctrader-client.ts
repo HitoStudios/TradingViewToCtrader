@@ -216,7 +216,8 @@ export class CTraderClient {
 
       case PayloadType.PROTO_OA_SYMBOL_BY_ID_RES:
         {
-          const sym = payload as any;
+          const p = payload as any;
+          const sym = p.symbol || p;
           if (sym.symbolId) {
             const info: SymbolInfo = {
               symbolId: Number(sym.symbolId),
@@ -225,7 +226,7 @@ export class CTraderClient {
               maxVolume: sym.maxVolume != null ? Number(sym.maxVolume) : undefined,
               volumeStep: sym.volumeStep != null ? Number(sym.volumeStep) : undefined,
             };
-            if (info.symbolName && this.symbolCache[info.symbolName]) {
+            if (info.symbolName) {
               this.symbolCache[info.symbolName] = info;
             }
             if (this.pendingSymbolDetailResolve) {
