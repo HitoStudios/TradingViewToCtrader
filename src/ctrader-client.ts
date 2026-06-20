@@ -16,6 +16,7 @@ export class CTraderClient {
   private accountId: number;
   private authenticated = false;
   private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) | null = null;
+  private pendingReject: ((reason: Error) => void) | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private log: (msg: string) => void;
@@ -43,12 +44,13 @@ export class CTraderClient {
 
   async connect(): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
-      this.log(`Connecting to wss://${this.host}:5036...`);
-      this.ws = new WebSocket(`wss://${this.host}:5036`);
+      this.log(Connecting to wss://\:5036...);
+      this.ws = new WebSocket(wss://\:5036);
 
       this.ws.onopen = () => {
         this.log('WebSocket connected');
         this.pendingResolve = resolve;
+        this.pendingReject = reject;
         this.sendAppAuth();
         this.startHeartbeat();
       };
@@ -58,12 +60,12 @@ export class CTraderClient {
       };
 
       this.ws.onerror = (err) => {
-        this.log(`WebSocket error: ${err.message}`);
+        this.log(WebSocket error: \);
         reject(err);
       };
 
       this.ws.onclose = (event) => {
-        this.log(`WebSocket closed: code=${event.code} reason=${event.reason}`);
+        this.log(WebSocket closed: code=\ reason=\);
         this.authenticated = false;
         this.stopHeartbeat();
         this.scheduleReconnect();
@@ -105,7 +107,7 @@ export class CTraderClient {
     try {
       msg = JSON.parse(data);
     } catch {
-      this.log(`Failed to parse message: ${data}`);
+      this.log(Failed to parse message: \);
       return;
     }
 
@@ -123,44 +125,36 @@ export class CTraderClient {
         if (this.pendingResolve) {
           this.pendingResolve(true);
           this.pendingResolve = null;
+          this.pendingReject = null;
         }
         break;
 
       case PayloadType.PROTO_OA_EXECUTION_EVENT:
-        this.log(`Execution event: ${JSON.stringify(payload)}`);
+        this.log(Execution event: \);
         if (this.onExecutionEvent) this.onExecutionEvent(payload);
         break;
 
       case PayloadType.PROTO_OA_ORDER_ERROR_EVENT:
-        this.log(`Order error: ${JSON.stringify(payload)}`);
+        this.log(Order error: \);
         if (this.onError) this.onError(payload);
         break;
 
       case PayloadType.PROTO_OA_ERROR_RES:
-        this.log(`Server error: ${JSON.stringify(payload)}`);
-        if (payload?.errorCode === 'OA_AUTH_TOKEN_EXPIRED' || payload?.errorCode === 1) {
-          this.log('Access token expired, attempting refresh...');
-          this.refreshAccessToken();
-          break;
-        }
-        // If auth failed, reject the connect promise
-        if (this.pendingResolve) {
-          const err = new Error(`Auth failed: ${(payload as Record<string, string>).errorCode} - ${(payload as Record<string, string>).description}`);
-          this.pendingReject = err;
-          this.pendingReject = null;
-          this.pendingResolve = null;
-        }
-        if (this.onError) this.onError(payload);
-        break;
-        this.log(`Server error: ${JSON.stringify(payload)}`);
-        // If token expired, try refresh
-        if (payload?.errorCode === 'OA_AUTH_TOKEN_EXPIRED' || payload?.errorCode === 1) {
-          this.log('Access token expired, attempting refresh...');
-          this.refreshAccessToken();
-        }
-        if (this.pendingResolve) {
-          this.pendingResolve(false);
-          this.pendingResolve = null;
+        this.log(Server error: \);
+        {
+          const p = payload as Record<string, string>;
+          if (p.errorCode === 'OA_AUTH_TOKEN_EXPIRED' || p.errorCode === '1') {
+            this.log('Access token expired, attempting refresh...');
+            this.refreshAccessToken();
+            break;
+          }
+          // Auth failure during connect - reject the promise
+          if (this.pendingReject) {
+            const err = new Error(Auth failed: \ - \);
+            this.pendingReject(err);
+            this.pendingReject = null;
+            this.pendingResolve = null;
+          }
         }
         if (this.onError) this.onError(payload);
         break;
@@ -174,18 +168,17 @@ export class CTraderClient {
             if (p.refreshToken) {
               this.refreshToken = p.refreshToken;
             }
-            this.log(`New access token: ${this.accessToken.substring(0, 20)}...`);
+            this.log(New access token: \...);
             this.sendAccountAuth(this.accessToken);
           }
         }
         break;
 
       case PayloadType.HEARTBEAT_EVENT:
-        // heartbeat - ignore
         break;
 
       default:
-        this.log(`Unhandled message type ${payloadType}: ${JSON.stringify(payload).substring(0, 200)}`);
+        this.log(Unhandled message type \: \);
     }
   }
 
@@ -228,7 +221,7 @@ export class CTraderClient {
       try {
         await this.connect();
       } catch (err) {
-        this.log(`Reconnect failed: ${err}`);
+        this.log(Reconnect failed: \);
         this.scheduleReconnect();
       }
     }, 5000);
@@ -238,7 +231,6 @@ export class CTraderClient {
     return this.authenticated;
   }
 
-  /** Look up symbol ID by name. Returns cached result if available. */
   private symbolCache: Record<string, number> = {};
   private cachedSymbolsPromise: Promise<void> | null = null;
 
@@ -261,7 +253,7 @@ export class CTraderClient {
 
       const listener = (data: string) => {
         try {
-          const msg = JSON.parse(data);
+          const msg = JSON.parse(data.toString());
           if (msg.payloadType === PayloadType.PROTO_OA_SYMBOLS_LIST_RES) {
             this.ws?.removeListener('message', listener);
             const symbols = msg.payload.symbol ?? [];
@@ -270,10 +262,10 @@ export class CTraderClient {
                 this.symbolCache[sym.symbolName] = Number(sym.symbolId);
               }
             }
-            this.log(`Cached ${Object.keys(this.symbolCache).length} symbols`);
+            this.log(Cached \ symbols);
             resolve();
           }
-        } catch { /* ignore parse errors on other messages */ }
+        } catch { }
       };
 
       this.ws!.on('message', listener);
@@ -297,7 +289,6 @@ export class CTraderClient {
     return this.cachedSymbolsPromise;
   }
 
-  /** Place a market or pending order */
   async placeOrder(params: {
     symbolId: number;
     tradeSide: number;
@@ -335,7 +326,6 @@ export class CTraderClient {
     });
   }
 
-  /** Close a position by position ID */
   async closePosition(positionId: number, volume?: number): Promise<void> {
     const payload: Record<string, unknown> = {
       ctidTraderAccountId: this.accountId,
