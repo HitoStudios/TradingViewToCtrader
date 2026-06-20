@@ -1,97 +1,111 @@
 import { Router, Request, Response } from 'express';
 import { CTraderClient } from './ctrader-client.js';
-import { OrderType, TradeSide } from './types.js';
+import { TradeSide, OrderType } from './types.js';
 
-export function createWebhookRouter(client: CTraderClient, webhookSecret: string): Router {
+interface WebhookPayload {
+  Action?: string;
+  symbol?: string;
+  entry?: number;
+  sl?: number;
+  tp1?: number;
+  tp2?: number;
+  tp3?: number;
+  notional?: number;
+  [key: string]: unknown;
+}
+
+function parseAction(action: string): { tradeSide: number; orderType: number } | null {
+  const upper = action.toUpperCase();
+
+  let tradeSide: number;
+  if (upper.includes('LONG') || upper.includes('BUY')) {
+    tradeSide = TradeSide.BUY;
+  } else if (upper.includes('SHORT') || upper.includes('SELL')) {
+    tradeSide = TradeSide.SELL;
+  } else {
+    return null;
+  }
+
+  const orderType = upper.includes('LIMIT') ? OrderType.LIMIT
+    : upper.includes('STOP') ? OrderType.STOP
+    : OrderType.MARKET;
+
+  return { tradeSide, orderType };
+}
+
+export function createWebhookRouter(client: CTraderClient, secret: string): Router {
   const router = Router();
 
-  router.post('/webhook', async (req: Request, res: Response) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    if (token !== webhookSecret) {
+  router.get('/health', function (_req: Request, res: Response) {
+    res.json({
+      status: client.isAuthenticated() ? 'connected' : 'disconnected',
+      authenticated: client.isAuthenticated(),
+    });
+  });
+
+  router.post('/webhook', async function (req: Request, res: Response) {
+    const auth = req.headers.authorization;
+
+    if (!auth || auth !== 'Bearer ' + secret) {
+      console.log('Unauthorized webhook request from ' + req.ip);
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
-    if (!client.isAuthenticated()) {
-      res.status(503).json({ error: 'cTrader not connected' });
+    const body = req.body as WebhookPayload;
+    console.log('Received webhook:', JSON.stringify(body));
+
+    if (!body.Action || !body.symbol || body.entry == null || body.notional == null) {
+      res.status(400).json({
+        error: 'Missing required fields: Action, symbol, entry, notional',
+      });
       return;
     }
 
-    const alert = req.body;
-    console.log(Received alert: );
-    
-    if (!alert || !alert.Action) {
-      res.status(400).json({ error: 'Missing Action in alert payload' });
+    const parsed = parseAction(body.Action);
+    if (!parsed) {
+      res.status(400).json({
+        error: 'Could not parse Action: ' + body.Action + ' (expected "DiMea Long" or similar)',
+      });
       return;
     }
 
     try {
-      const action = alert.Action as string;
-      const isLong = action.toLowerCase().includes('long');
-      const isShort = action.toLowerCase().includes('short');
-
-      if (!isLong && !isShort) {
-        res.status(400).json({ error: Cannot parse direction from Action:  });
-        return;
-      }
-
-      const tradeSide = isLong ? TradeSide.BUY : TradeSide.SELL;
-      const symbol = alert.symbol as string | undefined;
-      const entryPrice = alert.entry as number | undefined;
-      const sl = alert.sl as number | undefined;
-      const tp1 = alert.tp1 as number | undefined;
-      const notional = alert.notional as number | undefined;
-
-      if (!symbol) {
-        res.status(400).json({ error: 'Missing symbol' });
-        return;
-      }
-
-      const symbolId = await client.getSymbolId(symbol);
+      const symbolId = await client.getSymbolId(body.symbol);
       if (!symbolId) {
-        res.status(400).json({ error: Unknown symbol:  });
+        res.status(400).json({ error: 'Unknown symbol: ' + body.symbol });
         return;
       }
 
-      // notional is in cents - use directly as volume (100 = 0.01 lot)
-      const volume = notional ?? 100;
+      console.log('Symbol ' + body.symbol + ' -> id ' + symbolId);
+
+      const { tradeSide, orderType } = parsed;
+      const volume = body.notional;
+      const price = orderType === OrderType.MARKET ? undefined : body.entry;
+      const stopLoss = body.sl;
+      const takeProfit = body.tp1;
+
+      if (body.tp2 || body.tp3) {
+        console.log('Note: tp2=' + body.tp2 + ' tp3=' + body.tp3 + ' not applied (cTrader supports only one TP)');
+      }
 
       await client.placeOrder({
         symbolId,
         tradeSide,
         volume,
-        orderType: OrderType.MARKET,
-        stopLoss: sl,
-        takeProfit: tp1,
-        comment: action,
+        orderType,
+        price,
+        stopLoss,
+        takeProfit,
+        comment: 'TV bridge',
       });
 
-      const response: Record<string, unknown> = {
-        status: 'order_submitted',
-        action,
-        symbol,
-        volume,
-        sl,
-        tp1,
-      };
-
-      if (alert.tp2 || alert.tp3) {
-        response.note = Additional TP levels not set: tp2=, tp3=. Only tp1 was applied.;
-      }
-
-      res.json(response);
+      console.log('Order placed successfully');
+      res.json({ success: true, message: 'Order placed' });
     } catch (err) {
-      console.log(Order error: );
-      res.status(500).json({ error: String(err) });
+      console.error('Order placement failed:', err);
+      res.status(500).json({ error: 'Order placement failed', details: String(err) });
     }
-  });
-
-  router.get('/health', (_req: Request, res: Response) => {
-    res.json({
-      status: client.isAuthenticated() ? 'connected' : 'disconnected',
-      authenticated: client.isAuthenticated(),
-    });
   });
 
   return router;
