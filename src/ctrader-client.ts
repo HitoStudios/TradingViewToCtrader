@@ -15,7 +15,8 @@ export interface SymbolInfo {
 }
 
 export class CTraderClient {
-  private ws: WebSocket | null = null;
+  private ws: WebSocket |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
   private host: string;
   private clientId: string;
   private clientSecret: string;
@@ -23,15 +24,23 @@ export class CTraderClient {
   private refreshToken: string;
   private accountId: number;
   private authenticated = false;
-  private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) | null = null;
-  private pendingReject: ((reason: Error) => void) | null = null;
+  private pendingResolve: ((value: boolean | PromiseLike<boolean>) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private pendingReject: ((reason: Error) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
   private pendingSymbolResolve: (() => void) | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;|  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
   private log: (msg: string) => void;
 
-  onExecutionEvent: ((payload: any) => void) | null = null;
-  onError: ((payload: any) => void) | null = null;
+  onExecutionEvent: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
+  onError: ((payload: any) => void) |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
 
   constructor(config: {
     host: string;
@@ -197,11 +206,32 @@ export class CTraderClient {
               };
             }
           }
-          if (symbols.length > 0) { this.log('Sample symbol keys: ' + Object.keys(symbols[0]).join(', ')); }
           this.log('Cached ' + Object.keys(this.symbolCache).length + ' symbols');
           if (this.pendingSymbolResolve) {
             this.pendingSymbolResolve();
             this.pendingSymbolResolve = null;
+          }
+        }
+        break;
+
+      case PayloadType.PROTO_OA_SYMBOL_BY_ID_RES:
+        {
+          const sym = payload as any;
+          if (sym.symbolId) {
+            const info: SymbolInfo = {
+              symbolId: Number(sym.symbolId),
+              symbolName: sym.symbolName || '',
+              minVolume: sym.minVolume != null ? Number(sym.minVolume) : undefined,
+              maxVolume: sym.maxVolume != null ? Number(sym.maxVolume) : undefined,
+              volumeStep: sym.volumeStep != null ? Number(sym.volumeStep) : undefined,
+            };
+            if (info.symbolName && this.symbolCache[info.symbolName]) {
+              this.symbolCache[info.symbolName] = info;
+            }
+            if (this.pendingSymbolDetailResolve) {
+              this.pendingSymbolDetailResolve(info);
+              this.pendingSymbolDetailResolve = null;
+            }
           }
         }
         break;
@@ -266,14 +296,29 @@ export class CTraderClient {
   }
 
   private symbolCache: Record<string, SymbolInfo> = {};
-  private cachedSymbolsPromise: Promise<void> | null = null;
+  private cachedSymbolsPromise: Promise<void> |  private pendingSymbolResolve: (() => void) | null = null;
+  private pendingSymbolDetailResolve: ((info: SymbolInfo) => void) | null = null;
 
   async getSymbolInfo(symbolName: string): Promise<SymbolInfo | null> {
     if (this.symbolCache[symbolName]) {
-      return this.symbolCache[symbolName];
+      const cached = this.symbolCache[symbolName];
+      if (cached.minVolume != null) return cached;
+      try {
+        const detail = await this.fetchSymbolDetails(cached.symbolId);
+        return detail;
+      } catch {
+        return cached;
+      }
     }
     await this.ensureSymbolsLoaded();
-    return this.symbolCache[symbolName] ?? null;
+    const found = this.symbolCache[symbolName];
+    if (!found) return null;
+    try {
+      const detail = await this.fetchSymbolDetails(found.symbolId);
+      return detail;
+    } catch {
+      return found;
+    }
   }
 
   private async ensureSymbolsLoaded(): Promise<void> {
@@ -307,6 +352,35 @@ export class CTraderClient {
     });
 
     return this.cachedSymbolsPromise;
+  }
+
+  async fetchSymbolDetails(symbolId: number): Promise<SymbolInfo> {
+    const self = this;
+    return new Promise<SymbolInfo>(function (resolve, reject) {
+      if (!self.ws || !self.authenticated) {
+        reject(new Error('Not connected'));
+        return;
+      }
+
+      self.pendingSymbolDetailResolve = resolve;
+
+      self.send({
+        clientMsgId: uid(),
+        payloadType: PayloadType.PROTO_OA_SYMBOL_BY_ID_REQ,
+        payload: {
+          ctidTraderAccountId: self.accountId,
+          accessToken: self.accessToken,
+          symbolId,
+        },
+      });
+
+      setTimeout(function () {
+        if (self.pendingSymbolDetailResolve === resolve) {
+          self.pendingSymbolDetailResolve = null;
+          reject(new Error('Symbol detail load timeout'));
+        }
+      }, 15000);
+    });
   }
 
   async placeOrder(params: {
