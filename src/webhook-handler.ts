@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { CTraderClient } from './ctrader-client.js';
+import { CTraderClient, SymbolInfo } from './ctrader-client.js';
 import { TradeSide, OrderType } from './types.js';
 
 interface WebhookPayload {
@@ -33,7 +33,15 @@ function parseAction(action: string): { tradeSide: number; orderType: number } |
   return { tradeSide, orderType };
 }
 
-const MIN_VOLUME = 1000;
+function clampVolume(volume: number, info: SymbolInfo): number {
+  let v = volume;
+  if (info.minVolume != null && v < info.minVolume) v = info.minVolume;
+  if (info.maxVolume != null && v > info.maxVolume) v = info.maxVolume;
+  if (info.volumeStep != null && info.volumeStep > 0) {
+    v = Math.round(v / info.volumeStep) * info.volumeStep;
+  }
+  return v;
+}
 
 export function createWebhookRouter(client: CTraderClient, secret: string): Router {
   const router = Router();
@@ -72,34 +80,32 @@ export function createWebhookRouter(client: CTraderClient, secret: string): Rout
       return;
     }
 
-    if (body.notional < MIN_VOLUME) {
-      res.status(400).json({
-        error: 'Volume too low: ' + body.notional + ' cents (min ' + MIN_VOLUME + ' cents = 0.1 lots). Increase notional.',
-      });
-      return;
-    }
-
     try {
-      const symbolId = await client.getSymbolId(body.symbol);
-      if (!symbolId) {
+      const info = await client.getSymbolInfo(body.symbol);
+      if (!info) {
         res.status(400).json({ error: 'Unknown symbol: ' + body.symbol });
         return;
       }
 
-      console.log('Symbol ' + body.symbol + ' -> id ' + symbolId);
+      console.log('Symbol ' + body.symbol + ' -> id ' + info.symbolId
+        + ' (volume range: ' + info.minVolume + '-' + info.maxVolume + ')');
 
       const { tradeSide, orderType } = parsed;
-      const volume = body.notional;
+      const volume = clampVolume(body.notional, info);
       const price = orderType === OrderType.MARKET ? undefined : body.entry;
       const stopLoss = body.sl;
       const takeProfit = body.tp1;
+
+      if (volume !== body.notional) {
+        console.log('Volume adjusted: ' + body.notional + ' -> ' + volume + ' (clamped to symbol range)');
+      }
 
       if (body.tp2 || body.tp3) {
         console.log('Note: tp2=' + body.tp2 + ' tp3=' + body.tp3 + ' not applied (cTrader supports only one TP)');
       }
 
       await client.placeOrder({
-        symbolId,
+        symbolId: info.symbolId,
         tradeSide,
         volume,
         orderType,
@@ -109,8 +115,8 @@ export function createWebhookRouter(client: CTraderClient, secret: string): Rout
         comment: 'TV bridge',
       });
 
-      console.log('Order sent to cTrader');
-      res.json({ success: true, message: 'Order sent' });
+      console.log('Order sent to cTrader: vol=' + volume + ' side=' + tradeSide);
+      res.json({ success: true, message: 'Order sent', volume, range: { min: info.minVolume, max: info.maxVolume } });
     } catch (err) {
       console.error('Order placement failed:', err);
       res.status(500).json({ error: 'Order placement failed', details: String(err) });
