@@ -121,6 +121,12 @@ export function createWebhookRouter(client: CTraderClient, secret: string): Rout
     }
   });
 
+  router.get('/limits', function (_req: Request, res: Response) {
+    const symbolName = (_req.query.symbol as string || 'BTCUSD').toUpperCase();
+    const limits = { HARDCODED_BTCUSD_MAX: 5, symbolName: symbolName };
+    res.json(limits);
+  });
+
   router.get('/symbol/:name', async function (req: Request, res: Response) {
     try {
       const info = await client.getSymbolInfo(req.params.name.toUpperCase());
